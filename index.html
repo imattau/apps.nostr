@@ -9,6 +9,22 @@
       content="A decentralized Nostr app store for browsing and publishing NIP-89 listings."
     />
     <meta name="theme-color" content="#ff8a3d" />
+    <meta name="robots" content="index,follow" />
+    <link rel="canonical" href="/browse" />
+    <meta property="og:site_name" content="Nostr App Store" />
+    <meta property="og:title" content="Nostr App Store" />
+    <meta
+      property="og:description"
+      content="A decentralized Nostr app store for browsing and publishing NIP-89 listings."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="/browse" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Nostr App Store" />
+    <meta
+      name="twitter:description"
+      content="A decentralized Nostr app store for browsing and publishing NIP-89 listings."
+    />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -36,6 +52,13 @@
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
+    <noscript>
+      <section>
+        <h1>Nostr App Store</h1>
+        <p>A decentralized Nostr app store for browsing and publishing NIP-89 listings.</p>
+        <p>The app is best experienced with JavaScript enabled.</p>
+      </section>
+    </noscript>
     <div id="app"></div>
     <script type="module" src="./src/app.js"></script>
   </body>

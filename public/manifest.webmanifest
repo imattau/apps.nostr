@@ -2,7 +2,7 @@
   "name": "Nostr App Store",
   "short_name": "App Store",
   "description": "A decentralized Nostr app store for browsing and publishing NIP-89 listings.",
-  "start_url": "/#browse",
+  "start_url": "/browse",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],

@@ -101,6 +101,16 @@ let compactHeaderViewport = isCompactBrowseViewport();
 
 const CACHE_REFRESH_OVERLAP_SECONDS = 12 * 60 * 60;
 const CACHE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const SITE_NAME = "Nostr App Store";
+const SITE_DESCRIPTION = "A decentralized Nostr app store for browsing and publishing NIP-89 listings.";
+const DEFAULT_OG_IMAGE = new URL("/icon.svg", window.location.origin).href;
+
+window.addEventListener("popstate", () => {
+  state.route = getRoute();
+  state.accountMenuOpen = false;
+  routeSideEffects();
+  scheduleRender();
+});
 
 window.addEventListener("hashchange", () => {
   state.route = getRoute();
@@ -108,6 +118,8 @@ window.addEventListener("hashchange", () => {
   routeSideEffects();
   scheduleRender();
 });
+
+document.addEventListener("click", handleDocumentNavigation, true);
 
 window.addEventListener("storage", (event) => {
   if (event.key === STORAGE_KEYS.relays) {
@@ -155,15 +167,14 @@ window.addEventListener("resize", () => {
   }
 });
 
-if (!window.location.hash) {
-  window.location.hash = "#browse";
-}
+normalizeInitialLocation();
 
 boot();
 
 function boot() {
   restorePasskeyAccount();
   registerServiceWorker();
+  normalizeInitialLocation();
   routeSideEffects();
   void initializeServices();
 }
@@ -443,7 +454,7 @@ async function refreshCatalog({ background = false } = {}) {
 }
 
 function routeSideEffects() {
-  const route = parseRoute(window.location.hash);
+  const route = getRoute();
   state.route = route;
   if (route.name !== "detail") {
     state.zapComposer = null;
@@ -652,6 +663,7 @@ function scheduleRender() {
 
 function render() {
   const focusState = captureFocusState();
+  updateSeoMetadata();
   appRoot.innerHTML = `
     <div class="page-shell">
       ${renderHeader()}
@@ -701,7 +713,7 @@ function renderHeader() {
   const storedPasskeyAvailable = hasStoredPasskeyIdentity();
   return `
     <header class="topbar">
-      <a class="brand" href="#browse">
+      <a class="brand" href="${escapeHtml(routeToPath({ name: "browse" }))}">
         <span class="brand-mark">◌</span>
         <span>
           <strong>Nostr App Store</strong>
@@ -712,8 +724,8 @@ function renderHeader() {
         ${compactHeader
           ? renderAccountMenu({ compact: true, storedPasskeyAvailable })
           : `
-            ${renderNavLink("#browse", "Browse", renderBrowseIcon(), active === "browse")}
-            ${renderNavLink("#submit", "Submit", renderSubmitIcon(), active === "submit")}
+            ${renderNavLink(routeToPath({ name: "browse" }), "Browse", renderBrowseIcon(), active === "browse")}
+            ${renderNavLink(routeToPath({ name: "submit" }), "Submit", renderSubmitIcon(), active === "submit")}
             ${state.hasActiveAccount ? "" : renderLabeledButton("primary", storedPasskeyAvailable ? "connect-passkey" : "connect-account", storedPasskeyAvailable ? "Unlock passkey" : "Connect", renderConnectIcon())}
             ${state.hasActiveAccount ? renderAccountMenu({ compact: false, storedPasskeyAvailable }) : ""}
             <button
@@ -868,10 +880,10 @@ function renderAccountMenu({ compact = false, storedPasskeyAvailable = false } =
   const connectAction = storedPasskeyAvailable ? "connect-passkey" : "connect-account";
   const connectIcon = renderConnectIcon();
   const browseItem = compact
-    ? `<a class="menu-item" href="#browse"><span class="menu-item-icon" aria-hidden="true">${renderBrowseIcon()}</span><span class="menu-item-label">Browse</span></a>`
+    ? `<a class="menu-item" href="${escapeHtml(routeToPath({ name: "browse" }))}"><span class="menu-item-icon" aria-hidden="true">${renderBrowseIcon()}</span><span class="menu-item-label">Browse</span></a>`
     : "";
   const submitItem = compact
-    ? `<a class="menu-item" href="#submit"><span class="menu-item-icon" aria-hidden="true">${renderSubmitIcon()}</span><span class="menu-item-label">Submit</span></a>`
+    ? `<a class="menu-item" href="${escapeHtml(routeToPath({ name: "submit" }))}"><span class="menu-item-icon" aria-hidden="true">${renderSubmitIcon()}</span><span class="menu-item-label">Submit</span></a>`
     : "";
   const connectItem = compact && !state.hasActiveAccount
     ? `
@@ -1497,7 +1509,7 @@ function renderCard(app) {
   const developer = app.authorName || truncatePubkey(app.pubkey);
   return `
     <article class="card">
-      <a href="#app/${app.pubkey}/${app.d}" class="card-link">
+      <a href="${escapeHtml(routeToPath({ name: "detail", pubkey: app.pubkey, d: app.d }))}" class="card-link">
         <div class="card-media">
           ${renderImageElement({
             src: iconSrc,
@@ -2229,7 +2241,7 @@ function bindUi() {
       loadAppIntoForm(app);
       state.submitError = "";
       state.submitSuccess = "";
-      window.location.hash = "#submit";
+      navigateToRoute({ name: "submit" }, { replace: true });
     });
   });
 
@@ -2461,7 +2473,7 @@ async function handleSubmit(event) {
     pool.publish(eventToSign);
     await ingestEvents([eventToSign], { persist: true });
     state.submitSuccess = `Published ${state.form.name} successfully.`;
-    window.location.hash = `#app/${pubkey}/${getTagValue(eventToSign.tags || [], "d")}`;
+    navigateToRoute({ name: "detail", pubkey, d: getTagValue(eventToSign.tags || [], "d") }, { replace: true });
   } catch (error) {
     state.submitError = error instanceof Error ? error.message : "Publish failed.";
   } finally {
@@ -2699,7 +2711,7 @@ async function blockApp(eventId) {
     await Promise.resolve(pool.publish(signed));
     state.statusText = "Mute list updated.";
     if (state.route.name === "detail" && state.route.pubkey === app.pubkey) {
-      window.location.hash = "#browse";
+      navigateToRoute({ name: "browse" }, { replace: true });
     }
     scheduleRender();
   } catch (error) {
@@ -2822,6 +2834,52 @@ function handleFileInputs() {
   if (imageFile?.files?.[0] && imageFile.files[0] !== state.form.imageFile) setImageAttachment(imageFile.files[0]);
 }
 
+function normalizeInitialLocation() {
+  const route = getRoute();
+  const path = routeToPath(route);
+  const currentPath = window.location.pathname.replace(/\/+$/, "") || "/";
+  const hasLegacyHash = Boolean(window.location.hash && window.location.hash !== "#");
+  if (currentPath !== path || hasLegacyHash) {
+    window.history.replaceState(null, "", path);
+  }
+  state.route = route;
+}
+
+function navigateToRoute(route, { replace = false } = {}) {
+  const nextRoute = typeof route === "string" ? { name: route } : route;
+  const path = routeToPath(nextRoute);
+  if (replace) {
+    window.history.replaceState(null, "", path);
+  } else {
+    window.history.pushState(null, "", path);
+  }
+  state.route = nextRoute;
+  state.accountMenuOpen = false;
+  routeSideEffects();
+  scheduleRender();
+}
+
+function handleDocumentNavigation(event) {
+  if (event.defaultPrevented) return;
+  if (event.button !== 0) return;
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+  const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+  if (!anchor) return;
+  if ((anchor.target && anchor.target !== "_self") || anchor.hasAttribute("download")) return;
+
+  const href = anchor.getAttribute("href") || "";
+  if (href.startsWith("mailto:") || href.startsWith("tel:") || href.startsWith("lightning:")) return;
+
+  const url = new URL(anchor.href, window.location.href);
+  if (url.origin !== window.location.origin) return;
+  const route = parseRouteFromLocation(url, { fallback: false });
+  if (!route) return;
+
+  event.preventDefault();
+  navigateToRoute(route);
+}
+
 function isPowEnabled() {
   return Number(state.powBits || 0) > 0;
 }
@@ -2834,17 +2892,181 @@ function isDeleted(app) {
 }
 
 function getRoute() {
-  return parseRoute(window.location.hash || "#browse");
+  return parseRouteFromLocation(window.location);
 }
 
-function parseRoute(hash) {
-  const value = hash.replace(/^#/, "") || "browse";
-  if (value === "submit") return { name: "submit" };
-  if (value.startsWith("app/")) {
-    const [, pubkey, d] = value.split("/");
-    return { name: "detail", pubkey, d };
+function parseRouteFromLocation(locationLike, { fallback = true } = {}) {
+  const pathname = String(locationLike?.pathname || "/");
+  const hash = String(locationLike?.hash || "");
+  const hashValue = hash.replace(/^#/, "");
+
+  if (hashValue) {
+    const route = parseRouteValue(hashValue);
+    if (route) return route;
   }
-  return { name: "browse" };
+
+  const routeFromPath = parseRouteValue(pathname.replace(/^\//, ""));
+  if (routeFromPath) return routeFromPath;
+
+  return fallback ? { name: "browse" } : null;
+}
+
+function parseRouteValue(value) {
+  const normalized = String(value || "").replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!normalized || normalized === "browse" || normalized === "index.html") return { name: "browse" };
+  if (normalized === "submit") return { name: "submit" };
+  if (normalized.startsWith("app/")) {
+    const [, pubkey, d] = normalized.split("/");
+    if (pubkey && d) {
+      return {
+        name: "detail",
+        pubkey: safeDecodeURIComponent(pubkey),
+        d: safeDecodeURIComponent(d),
+      };
+    }
+  }
+  return null;
+}
+
+function routeToPath(route) {
+  if (route?.name === "submit") return "/submit";
+  if (route?.name === "detail" && route.pubkey && route.d) {
+    return `/app/${encodeURIComponent(route.pubkey)}/${encodeURIComponent(route.d)}`;
+  }
+  return "/browse";
+}
+
+function updateSeoMetadata() {
+  const seo = buildSeoMetadata();
+  setHeadAttribute('meta[name="description"]', "meta", "content", seo.description, { name: "description" });
+  setHeadAttribute('meta[name="robots"]', "meta", "content", seo.robots, { name: "robots" });
+  setHeadAttribute('link[rel="canonical"]', "link", "href", seo.canonical, { rel: "canonical" });
+  setHeadAttribute('meta[property="og:site_name"]', "meta", "content", SITE_NAME, { property: "og:site_name" });
+  setHeadAttribute('meta[property="og:title"]', "meta", "content", seo.title, { property: "og:title" });
+  setHeadAttribute('meta[property="og:description"]', "meta", "content", seo.description, { property: "og:description" });
+  setHeadAttribute('meta[property="og:type"]', "meta", "content", seo.ogType, { property: "og:type" });
+  setHeadAttribute('meta[property="og:url"]', "meta", "content", seo.canonical, { property: "og:url" });
+  setHeadAttribute('meta[property="og:image"]', "meta", "content", seo.image, { property: "og:image" });
+  setHeadAttribute('meta[name="twitter:card"]', "meta", "content", seo.twitterCard, { name: "twitter:card" });
+  setHeadAttribute('meta[name="twitter:title"]', "meta", "content", seo.title, { name: "twitter:title" });
+  setHeadAttribute('meta[name="twitter:description"]', "meta", "content", seo.description, { name: "twitter:description" });
+  setHeadAttribute('meta[name="twitter:image"]', "meta", "content", seo.image, { name: "twitter:image" });
+  document.title = seo.title;
+
+  const jsonLdId = "seo-jsonld";
+  let jsonLd = document.getElementById(jsonLdId);
+  if (seo.jsonLd) {
+    if (!jsonLd) {
+      jsonLd = document.createElement("script");
+      jsonLd.type = "application/ld+json";
+      jsonLd.id = jsonLdId;
+      document.head.appendChild(jsonLd);
+    }
+    jsonLd.textContent = JSON.stringify(seo.jsonLd);
+  } else if (jsonLd) {
+    jsonLd.remove();
+  }
+}
+
+function buildSeoMetadata() {
+  const canonical = new URL(routeToPath(state.route), window.location.origin).href;
+  const baseDescription = SITE_DESCRIPTION;
+
+  if (state.route.name === "submit") {
+    return {
+      title: `Submit an app listing | ${SITE_NAME}`,
+      description: "Publish or update your own Nostr app listing.",
+      canonical,
+      robots: "noindex,nofollow",
+      ogType: "website",
+      image: DEFAULT_OG_IMAGE,
+      twitterCard: "summary",
+      jsonLd: null,
+    };
+  }
+
+  if (state.route.name === "detail") {
+    const app = state.apps.get(`${state.route.pubkey}:${state.route.d}`);
+    const description = clampText(app?.longDescription || app?.description || baseDescription, 220);
+    const image = absoluteSeoImageUrl(app?.image || app?.imageSources?.[0] || DEFAULT_OG_IMAGE);
+    const title = app?.name ? `${app.name} | ${SITE_NAME}` : `App listing | ${SITE_NAME}`;
+    return {
+      title,
+      description,
+      canonical,
+      robots: "index,follow",
+      ogType: "website",
+      image,
+      twitterCard: "summary_large_image",
+      jsonLd: app ? buildSoftwareApplicationJsonLd(app, canonical, image, description) : null,
+    };
+  }
+
+  return {
+    title: `Browse Nostr apps | ${SITE_NAME}`,
+    description: baseDescription,
+    canonical,
+    robots: "index,follow",
+    ogType: "website",
+    image: DEFAULT_OG_IMAGE,
+    twitterCard: "summary_large_image",
+    jsonLd: null,
+  };
+}
+
+function buildSoftwareApplicationJsonLd(app, canonical, image, description) {
+  const ld = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: app.name,
+    description,
+    url: app.web || canonical,
+    applicationCategory: app.categories?.[0] || "Application",
+    operatingSystem: "Web",
+    image,
+    author: app.authorName
+      ? {
+          "@type": "Person",
+          name: app.authorName,
+        }
+      : undefined,
+  };
+
+  if (!app.authorName) delete ld.author;
+  if (app.version) ld.softwareVersion = app.version;
+  if (app.license) ld.license = app.license;
+  if (app.repository) ld.codeRepository = app.repository;
+  return ld;
+}
+
+function absoluteSeoImageUrl(url) {
+  if (!url) return DEFAULT_OG_IMAGE;
+  try {
+    return new URL(url, window.location.origin).href;
+  } catch {
+    return DEFAULT_OG_IMAGE;
+  }
+}
+
+function setHeadAttribute(selector, tagName, attributeName, value, baseAttributes = {}) {
+  let element = document.head.querySelector(selector);
+  if (!element) {
+    element = document.createElement(tagName);
+    for (const [key, attrValue] of Object.entries(baseAttributes)) {
+      element.setAttribute(key, attrValue);
+    }
+    document.head.appendChild(element);
+  }
+  element.setAttribute(attributeName, String(value));
+  return element;
+}
+
+function safeDecodeURIComponent(value) {
+  try {
+    return decodeURIComponent(String(value));
+  } catch {
+    return String(value);
+  }
 }
 
 function loadJson(key, fallback) {

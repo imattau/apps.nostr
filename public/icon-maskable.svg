@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Nostr App Store">
+  <rect width="512" height="512" fill="#050505"/>
+  <circle cx="256" cy="256" r="182" fill="#111114" stroke="#ff8a3d" stroke-width="18"/>
+  <circle cx="186" cy="186" r="46" fill="#ff8a3d"/>
+  <path d="M142 350l82-82 60 60 88-88 30 30v80H142z" fill="#ff4fa3"/>
+  <path d="M146 146h220" stroke="#f5f5f7" stroke-width="14" stroke-linecap="square"/>
+  <path d="M146 366h220" stroke="#f5f5f7" stroke-width="14" stroke-linecap="square"/>
+</svg>

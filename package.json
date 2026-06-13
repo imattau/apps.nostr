@@ -1,0 +1,21 @@
+{
+  "name": "apps.nostr",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "applesauce-accounts": "*",
+    "applesauce-core": "*",
+    "applesauce-relay": "*",
+    "blossom-client-sdk": "^5.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test",
+    "deploy:remote": "bash scripts/deploy-remote.sh"
+  },
+  "devDependencies": {
+    "vite": "^8.0.16"
+  }
+}

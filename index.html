@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nostr App Store</title>
+    <meta
+      name="description"
+      content="A decentralized Nostr app store for browsing and publishing NIP-89 listings."
+    />
+    <meta name="theme-color" content="#ff8a3d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon-maskable.svg" />
+    <script>
+      window.wnjParams = {
+        position: "bottom",
+        accent: "cyan",
+        compactMode: true,
+        startHidden: false,
+        nostrConnectRelays: [
+          "wss://bucket.coracle.social",
+          "wss://relay.nsec.app",
+          "wss://nos.lol",
+          "wss://relay.primal.net",
+        ],
+        appMetadata: {
+          name: "Nostr App Store",
+          url: window.location.origin,
+        },
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/window.nostr.js/dist/window.nostr.min.js"></script>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

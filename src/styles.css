@@ -736,9 +736,12 @@ button:disabled, .menu-item:disabled {
   text-align: left;
 }
 
-.toolbar-row--filters .toolbar-group,
-.toolbar-row--controls .toolbar-group {
+.toolbar-row--filters .toolbar-group {
   flex: 1 1 320px;
+}
+
+.toolbar-row--controls .toolbar-group {
+  flex: 0 1 auto;
 }
 
 .filter-chip {

@@ -915,6 +915,12 @@ function renderAccountMenu({ compact = false, storedPasskeyAvailable = false } =
       <span class="menu-item-label">Wallet</span>
     </button>
   `;
+  const refreshItem = `
+    <button class="menu-item" type="button" data-action="refresh-relays" ${state.syncing ? "disabled" : ""}>
+      <span class="menu-item-icon ${state.syncing ? "spinning" : ""}" aria-hidden="true">${renderRefreshIcon()}</span>
+      <span class="menu-item-label">${state.syncing ? "Refreshing..." : "Refresh relays"}</span>
+    </button>
+  `;
   const disconnectItem = compact && state.hasActiveAccount
     ? `<button class="menu-item" type="button" data-action="disconnect-account" aria-label="${state.accountType === "passkey" ? "Lock passkey" : "Log out"}"><span class="menu-item-icon" aria-hidden="true">${renderDisconnectIcon()}</span><span class="menu-item-label">${state.accountType === "passkey" ? "Lock passkey" : "Log out"}</span></button>`
     : "";
@@ -937,6 +943,7 @@ function renderAccountMenu({ compact = false, storedPasskeyAvailable = false } =
       <div class="menu-section">
         <p class="menu-section-label">Tools</p>
         ${walletItem}
+        ${refreshItem}
         ${themeItem}
         ${settingsItem}
         ${installItem}
@@ -971,6 +978,7 @@ function renderAccountMenu({ compact = false, storedPasskeyAvailable = false } =
         ${compact ? utilitySection : `
           <div class="menu-section">
             ${walletItem}
+            ${refreshItem}
             <button class="menu-item" type="button" data-action="toggle-settings">
               <span class="menu-item-icon" aria-hidden="true">${renderRelayIcon()}</span>
               <span class="menu-item-label">Relay settings</span>
@@ -1182,6 +1190,15 @@ function renderRelayIcon() {
       <path d="M7.5 10.5a6 6 0 0 1 9 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"></path>
       <path d="M6 7a10 10 0 0 1 12 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"></path>
       <path d="M4.5 3.5a13 13 0 0 1 15 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"></path>
+    </svg>
+  `;
+}
+
+function renderRefreshIcon() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M21 2v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"></path>
+      <path d="M21 13a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"></path>
     </svg>
   `;
 }
@@ -1904,6 +1921,13 @@ function bindUi() {
       state.accountMenuOpen = !state.accountMenuOpen;
       state.settingsOpen = false;
       scheduleRender();
+    });
+  });
+
+  document.querySelectorAll("[data-action='refresh-relays']").forEach((element) => {
+    element.addEventListener("click", async () => {
+      state.accountMenuOpen = false;
+      await refreshCatalog();
     });
   });
 

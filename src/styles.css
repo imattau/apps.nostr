@@ -384,6 +384,23 @@ code {
   display: block;
 }
 
+.spinning svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+button:disabled, .menu-item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+
 @keyframes accountMenuReveal {
   from {
     opacity: 0;

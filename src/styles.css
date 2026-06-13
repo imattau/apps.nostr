@@ -715,6 +715,7 @@ button:disabled, .menu-item:disabled {
   content: "−";
 }
 
+details.browse-filter-group > .browse-filter-body,
 .browse-filter-body {
   display: grid;
   gap: 0.85rem;

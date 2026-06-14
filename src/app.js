@@ -55,7 +55,7 @@ const state = {
   filterBuildType: "",
   activeTab: "browse",
   apps: new Map(),
-  deletions: new Set(),
+  deletions: new Map(),
   mediaServerEvents: new Map(),
   blockListEvents: new Map(),
   userMediaServers: [],
@@ -622,8 +622,11 @@ async function ingestEvents(events, { persist = false } = {}) {
     }
     if (event.kind === 5) {
       for (const tag of event.tags || []) {
-        if (tag[0] === "e" && tag[1]) state.deletions.add(tag[1]);
-        if (tag[0] === "a" && tag[1]) state.deletions.add(tag[1]);
+        if ((tag[0] === "e" || tag[0] === "a") && tag[1]) {
+          const ref = tag[1];
+          const existingTime = state.deletions.get(ref) || 0;
+          state.deletions.set(ref, Math.max(existingTime, Number(event.created_at || 0)));
+        }
       }
     }
   }
@@ -2958,8 +2961,12 @@ function isPowEnabled() {
 }
 
 function isDeleted(app) {
+  const appCreatedAt = Number(app.created_at || app.publishedAt || 0);
   for (const ref of deletionReferencesForEvent(app)) {
-    if (state.deletions.has(ref)) return true;
+    if (state.deletions.has(ref)) {
+      const deletionTime = state.deletions.get(ref);
+      if (appCreatedAt <= deletionTime) return true;
+    }
   }
   return false;
 }

@@ -1380,6 +1380,7 @@ function renderMain() {
 function renderBrowseView() {
   const apps = [...state.apps.values()]
     .filter((app) => !isBlockedPubkey(app.pubkey))
+    .filter((app) => !isDeleted(app))
     .filter((app) => !state.filterCategory || app.categories.includes(state.filterCategory))
     .filter((app) => !state.filterBuildType || app.buildTypes.includes(state.filterBuildType))
     .filter((app) => {
@@ -1726,7 +1727,7 @@ function renderDetailView() {
 
 function renderSubmitView() {
   const existingApps = state.pubkey
-    ? [...state.apps.values()].filter((app) => app.pubkey === state.pubkey && !isBlockedPubkey(app.pubkey)).sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
+    ? [...state.apps.values()].filter((app) => app.pubkey === state.pubkey && !isBlockedPubkey(app.pubkey) && !isDeleted(app)).sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
     : [];
   const uploadSummary = state.userMediaServers.length
     ? `Using ${state.userMediaServers.length} Blossom server${state.userMediaServers.length === 1 ? "" : "s"} from your profile.`

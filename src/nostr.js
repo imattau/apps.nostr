@@ -192,7 +192,7 @@ export function createSigner(windowNostr = globalThis.window?.nostr) {
 }
 
 export function isNip07Available() {
-  return typeof window !== "undefined" && Boolean(window.nostr?.signEvent);
+  return typeof window !== "undefined" && Boolean(window.nostr?.signEvent && !window.nostr?.isWnj);
 }
 
 export async function mineNonce(event, bits) {

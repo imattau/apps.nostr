@@ -3,10 +3,12 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@scure/base": "^1.1.1",
     "applesauce-accounts": "*",
     "applesauce-core": "*",
     "applesauce-relay": "*",
-    "blossom-client-sdk": "^5.0.0"
+    "blossom-client-sdk": "^5.0.0",
+    "micromark": "^4.0.2"
   },
   "scripts": {
     "dev": "vite",

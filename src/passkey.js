@@ -1,3 +1,4 @@
+import { base64url } from "@scure/base";
 import { nip04, nip19, nip44 } from "nostr-tools";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 
@@ -238,33 +239,9 @@ function extractPrfResult(credential) {
 }
 
 function arrayBufferToBase64Url(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return toBase64(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return base64url.encode(new Uint8Array(buffer));
 }
 
 function base64UrlToArrayBuffer(value) {
-  const padded = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
-  const padding = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
-  const binary = fromBase64(padded + padding);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes.buffer;
-}
-
-function toBase64(binary) {
-  if (typeof btoa === "function") {
-    return btoa(binary);
-  }
-  return Buffer.from(binary, "binary").toString("base64");
-}
-
-function fromBase64(base64) {
-  if (typeof atob === "function") {
-    return atob(base64);
-  }
-  return Buffer.from(base64, "base64").toString("binary");
+  return base64url.decode(String(value || "")).buffer;
 }

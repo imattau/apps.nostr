@@ -1,4 +1,4 @@
-const BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+import { bech32 } from "@scure/base";
 
 export function parseLightningAddress(value) {
   const address = String(value || "").trim();
@@ -25,7 +25,7 @@ export function parseLightningAddress(value) {
 }
 
 export function encodeLnurl(url) {
-  return encodeBech32("lnurl", new TextEncoder().encode(String(url || "")));
+  return bech32.encode("lnurl", bech32.toWords(new TextEncoder().encode(String(url || ""))));
 }
 
 export async function fetchLightningAddressMetadata(lightningAddress, { fetchImpl = fetch } = {}) {
@@ -149,73 +149,4 @@ export async function requestZapInvoice({
     callbackUrl: callbackUrl.toString(),
     metadata,
   };
-}
-
-function encodeBech32(hrp, data) {
-  const words = convertBits(data, 8, 5, true);
-  const checksum = createChecksum(hrp, words);
-  const combined = [...words, ...checksum];
-  return `${hrp}1${combined.map((value) => BECH32_CHARSET[value]).join("")}`;
-}
-
-function createChecksum(hrp, data) {
-  const values = [...hrpExpand(hrp), ...data, 0, 0, 0, 0, 0, 0];
-  const mod = polymod(values) ^ 1;
-  const checksum = [];
-  for (let i = 0; i < 6; i += 1) {
-    checksum.push((mod >> (5 * (5 - i))) & 31);
-  }
-  return checksum;
-}
-
-function hrpExpand(hrp) {
-  const values = [];
-  for (let i = 0; i < hrp.length; i += 1) {
-    values.push(hrp.charCodeAt(i) >> 5);
-  }
-  values.push(0);
-  for (let i = 0; i < hrp.length; i += 1) {
-    values.push(hrp.charCodeAt(i) & 31);
-  }
-  return values;
-}
-
-function polymod(values) {
-  let chk = 1;
-  for (const value of values) {
-    const top = chk >> 25;
-    chk = ((chk & 0x1ffffff) << 5) ^ value;
-    if (top & 1) chk ^= 0x3b6a57b2;
-    if (top & 2) chk ^= 0x26508e6d;
-    if (top & 4) chk ^= 0x1ea119fa;
-    if (top & 8) chk ^= 0x3d4233dd;
-    if (top & 16) chk ^= 0x2a1462b3;
-  }
-  return chk;
-}
-
-function convertBits(data, fromBits, toBits, pad = true) {
-  let acc = 0;
-  let bits = 0;
-  const result = [];
-  const maxValue = (1 << toBits) - 1;
-  for (const value of data) {
-    if (value < 0 || value >> fromBits !== 0) {
-      throw new Error("Invalid value when converting bech32 data.");
-    }
-    acc = (acc << fromBits) | value;
-    bits += fromBits;
-    while (bits >= toBits) {
-      bits -= toBits;
-      result.push((acc >> bits) & maxValue);
-    }
-  }
-  if (pad) {
-    if (bits > 0) {
-      result.push((acc << (toBits - bits)) & maxValue);
-    }
-  } else if (bits >= fromBits || ((acc << (toBits - bits)) & maxValue)) {
-    throw new Error("Invalid incomplete group in bech32 data.");
-  }
-  return result;
 }

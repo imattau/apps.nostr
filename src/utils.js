@@ -1,3 +1,5 @@
+import { micromark } from "micromark";
+
 export function slugify(value) {
   return String(value || "")
     .normalize("NFKD")
@@ -70,62 +72,10 @@ export function formatBytes(bytes) {
 export function markdownToHtml(markdown) {
   const input = String(markdown || "").replace(/\r\n/g, "\n");
   if (!input.trim()) return "<p class=\"muted\">No description provided.</p>";
-
-  const lines = input.split("\n");
-  const blocks = [];
-  let list = [];
-
-  const flushList = () => {
-    if (!list.length) return;
-    blocks.push(
-      `<ul>${list
-        .map((item) => `<li>${inlineMarkdown(item.replace(/^\s*[-*+]\s+/, ""))}</li>`)
-        .join("")}</ul>`,
-    );
-    list = [];
-  };
-
-  for (const line of lines) {
-    const trimmed = line.trimEnd();
-    if (!trimmed.trim()) {
-      flushList();
-      continue;
-    }
-    if (/^\s*[-*+]\s+/.test(trimmed)) {
-      list.push(trimmed);
-      continue;
-    }
-    flushList();
-    if (/^###\s+/.test(trimmed)) {
-      blocks.push(`<h3>${inlineMarkdown(trimmed.replace(/^###\s+/, ""))}</h3>`);
-      continue;
-    }
-    if (/^##\s+/.test(trimmed)) {
-      blocks.push(`<h2>${inlineMarkdown(trimmed.replace(/^##\s+/, ""))}</h2>`);
-      continue;
-    }
-    if (/^#\s+/.test(trimmed)) {
-      blocks.push(`<h1>${inlineMarkdown(trimmed.replace(/^#\s+/, ""))}</h1>`);
-      continue;
-    }
-    if (/^>\s+/.test(trimmed)) {
-      blocks.push(`<blockquote>${inlineMarkdown(trimmed.replace(/^>\s+/, ""))}</blockquote>`);
-      continue;
-    }
-    blocks.push(`<p>${inlineMarkdown(trimmed)}</p>`);
-  }
-  flushList();
-
-  return blocks.join("");
-}
-
-function inlineMarkdown(value) {
-  const escaped = escapeHtml(value);
-  return escaped
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>')
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  return micromark(input, {
+    allowDangerousHtml: false,
+    allowDangerousProtocol: false,
+  });
 }
 
 export async function sha256Hex(value) {

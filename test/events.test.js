@@ -5,7 +5,7 @@ import { nip19 } from "nostr-tools";
 import { parseNostrConnectURI } from "nostr-tools/nip46";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 
-import { APP_STORE_TAG, buildMuteListEvent, buildNip89Event, buildReportEvent, isAppStoreListingEvent, isExpiredEvent, parseBlossomServerListEvent, parseMuteListEvent, parseNip89Event, parseProfileMetadataEvent, shouldReplaceCatalogEvent } from "../src/events.js";
+import { APP_STORE_TAG, buildDeleteEvent, buildMuteListEvent, buildNip89Event, buildReportEvent, isAppStoreListingEvent, isExpiredEvent, parseBlossomServerListEvent, parseMuteListEvent, parseNip89Event, parseProfileMetadataEvent, shouldReplaceCatalogEvent } from "../src/events.js";
 import { compareBrowseApps, normalizeGridSize, normalizeSortOrder } from "../src/browse.js";
 import { mergeSelectedFiles } from "../src/attachments.js";
 import { toggleChoiceValue } from "../src/choices.js";
@@ -476,3 +476,28 @@ test("compareBrowseApps sorts alphabetically and by age", () => {
   assert.equal(compareBrowseApps(a, b, "newest") < 0, true);
   assert.equal(compareBrowseApps(a, b, "oldest") > 0, true);
 });
+
+test("buildDeleteEvent constructs a NIP-09 kind 5 event", () => {
+  const mockApp = {
+    id: "abcdef123456",
+    pubkey: "publisher_pubkey",
+    tags: [
+      ["d", "my-cool-app"]
+    ]
+  };
+
+  const event = buildDeleteEvent({
+    app: mockApp,
+    signerPubkey: "user_pubkey",
+    reason: "Removing outdated app"
+  });
+
+  assert.equal(event.kind, 5);
+  assert.equal(event.pubkey, "user_pubkey");
+  assert.equal(event.content, "Removing outdated app");
+  assert.deepEqual(event.tags, [
+    ["e", "abcdef123456"],
+    ["a", "31922:publisher_pubkey:my-cool-app"]
+  ]);
+});
+

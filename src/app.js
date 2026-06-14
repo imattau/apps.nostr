@@ -13,7 +13,7 @@ import { GRID_SIZE_OPTIONS, compareBrowseApps, normalizeGridSize, normalizeSortO
 import { buildNostrConnectSession, connectNostrConnectSigner, disposeNostrConnectSession } from "./connect.js";
 import { createNostrServices } from "./applesauce.js";
 import { clearPasskeySession, completePasskeySession, hasStoredPasskeyIdentity, importPasskeyIdentityFromNsec, isPasskeySupported, registerPasskeyIdentity, restorePasskeySession, unlockPasskeyIdentity } from "./passkey.js";
-import { APP_STORE_TAG, buildMuteListEvent, buildNip89Event, buildReportEvent, deletionReferencesForEvent, eventKey, isAppStoreListingEvent, isExpiredEvent, parseBlossomServerListEvent, parseMuteListEvent, parseNip89Event, parseProfileMetadataEvent, shouldReplaceCatalogEvent } from "./events.js";
+import { APP_STORE_TAG, buildDeleteEvent, buildMuteListEvent, buildNip89Event, buildReportEvent, deletionReferencesForEvent, eventKey, isAppStoreListingEvent, isExpiredEvent, parseBlossomServerListEvent, parseMuteListEvent, parseNip89Event, parseProfileMetadataEvent, shouldReplaceCatalogEvent } from "./events.js";
 import { isNip07Available, mineNonce, nostrEventHash } from "./nostr.js";
 import { buildUploadServerTargets, prepareImageFileForUpload, uploadFileToServers } from "./uploads.js";
 import { payInvoiceWithNwc } from "./wallet.js";
@@ -1124,6 +1124,14 @@ function renderEditIcon() {
   `;
 }
 
+function renderDeleteIcon() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  `;
+}
+
 function renderRepositoryIcon() {
   return `
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -1692,6 +1700,7 @@ function renderDetailView() {
       <div class="actions">
         ${app.web ? renderLabeledLink("primary", app.web, "Open app", renderOpenIcon(), true) : ""}
         ${state.hasActiveAccount && state.pubkey === app.pubkey ? renderLabeledButton("ghost", "edit-app", "Edit app", renderEditIcon(), app.id) : ""}
+        ${state.hasActiveAccount && state.pubkey === app.pubkey ? renderLabeledButton("ghost", "delete-app", "Delete app", renderDeleteIcon(), app.id) : ""}
         ${app.repository ? renderLabeledLink("ghost", app.repository, "Repository", renderRepositoryIcon(), true) : ""}
         ${app.authorWebsite ? renderLabeledLink("ghost", app.authorWebsite, "Author site", renderAuthorSiteIcon(), true) : ""}
         ${renderLabeledButton("ghost", "copy-event-id", "Copy event ID", renderCopyIcon(), app.id)}
@@ -2269,6 +2278,12 @@ function bindUi() {
     });
   });
 
+  document.querySelectorAll("[data-action='delete-app']").forEach((element) => {
+    element.addEventListener("click", async () => {
+      await deleteApp(element.getAttribute("data-event-id"));
+    });
+  });
+
   document.querySelectorAll("[data-action='remove-image-file']").forEach((element) => {
     element.addEventListener("click", () => {
       clearAttachmentPreview("image");
@@ -2740,6 +2755,39 @@ async function blockApp(eventId) {
     scheduleRender();
   } catch (error) {
     state.statusText = error instanceof Error ? error.message : "Failed to update mute list.";
+    scheduleRender();
+  }
+}
+
+async function deleteApp(eventId) {
+  const app = [...state.apps.values()].find((candidate) => candidate.id === eventId);
+  if (!app) return;
+  if (!state.hasActiveAccount || !state.signer) {
+    state.statusText = "Connect a signer to delete your app listing.";
+    scheduleRender();
+    return;
+  }
+
+  if (!window.confirm(`Are you sure you want to delete "${app.name}" from Nostr? This action is permanent.`)) {
+    return;
+  }
+
+  try {
+    const pubkey = await state.signer.getPublicKey();
+    const deletionEvent = buildDeleteEvent({
+      app,
+      signerPubkey: pubkey,
+    });
+    let signed = await state.signer.signEvent(deletionEvent);
+    if (state.powBits > 0) {
+      signed = await state.signer.signEvent(await mineNonce(signed, state.powBits));
+    }
+    await ingestEvents([signed], { persist: true });
+    await Promise.resolve(pool.publish(signed));
+    state.statusText = "App deletion request published.";
+    scheduleRender();
+  } catch (error) {
+    state.statusText = error instanceof Error ? error.message : "Failed to delete app listing.";
     scheduleRender();
   }
 }

@@ -178,3 +178,22 @@ export function buildReportEvent({ app, signerPubkey, note = "", reportType = "o
     content: String(note || "").trim(),
   };
 }
+
+export function buildDeleteEvent({ app, signerPubkey, reason = "Deleted via App Store", now = Math.floor(Date.now() / 1000) }) {
+  const tags = [];
+  if (app.id) {
+    tags.push(["e", app.id]);
+  }
+  const d = getTagValue(app.tags || [], "d");
+  if (d) {
+    tags.push(["a", `31922:${app.pubkey}:${d}`]);
+  }
+  return {
+    kind: 5,
+    pubkey: signerPubkey,
+    created_at: now,
+    tags,
+    content: String(reason || "").trim(),
+  };
+}
+

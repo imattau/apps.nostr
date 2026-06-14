@@ -163,6 +163,10 @@ window.addEventListener("resize", () => {
   const nextCompactHeaderViewport = isCompactBrowseViewport();
   if (nextCompactHeaderViewport !== compactHeaderViewport) {
     compactHeaderViewport = nextCompactHeaderViewport;
+    if (!nextCompactHeaderViewport) {
+      state.browseFiltersOpen = true;
+      state.buildFiltersOpen = true;
+    }
     scheduleRender();
   }
 });
@@ -804,28 +808,41 @@ function renderConnectHelpPanel() {
 }
 
 function renderStoredPasskeyCard({ passkeySupported, passkeyLabel }) {
+  const hasImportValue = Boolean(state.passkeyImportNsec.trim());
   return `
-    <section class="connect-method-card">
-      <div>
-        <p class="eyebrow">Passkey</p>
-        <p class="connect-import-copy">Unlock the passkey identity already stored on this device. You can replace it by importing a different nsec if needed.</p>
+    <section class="connect-method-card connect-method-card--featured">
+      <div class="connect-method-card-head">
+        <div class="connect-method-card-title-row">
+          <p class="eyebrow">Passkey</p>
+          <span class="connect-method-badge">Stored on this device</span>
+        </div>
+        <p class="connect-import-copy">Unlock the passkey identity already stored on this device to continue. If you need to replace it, import a different nsec below.</p>
       </div>
       ${passkeySupported ? `
-        <label class="connect-link-field">
-          <span>Existing nsec</span>
-          <input
-            name="passkey-import-nsec"
-            type="password"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="nsec1… or 64 hex chars"
-            value="${escapeHtml(state.passkeyImportNsec)}"
-          />
-        </label>
+        <div class="actions connect-actions connect-actions--primary">
+          <button class="primary" type="button" data-action="connect-passkey" ${state.passkeyBusy ? "disabled" : ""}>${state.passkeyBusy ? "Unlocking…" : "Unlock passkey"}</button>
+        </div>
+        <details class="advanced-options connect-passkey-advanced" ${hasImportValue ? "open" : ""}>
+          <summary>Use a different nsec</summary>
+          <div class="advanced-body">
+            <p class="connect-import-copy">Importing a different secret replaces the stored identity on this device.</p>
+            <label class="connect-link-field">
+              <span>New nsec</span>
+              <input
+                name="passkey-import-nsec"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="nsec1… or 64 hex chars"
+                value="${escapeHtml(state.passkeyImportNsec)}"
+              />
+            </label>
+            <div class="actions connect-actions">
+              <button class="ghost" type="button" data-action="connect-passkey" ${state.passkeyBusy ? "disabled" : ""}>${state.passkeyBusy ? "Importing…" : "Import and replace"}</button>
+            </div>
+          </div>
+        </details>
       ` : `<p class="connect-import-copy">This browser does not support passkeys.</p>`}
-      <div class="actions connect-actions">
-        ${passkeySupported ? `<button class="ghost" type="button" data-action="connect-passkey" ${state.passkeyBusy ? "disabled" : ""}>${state.passkeyBusy ? "Opening…" : passkeyLabel}</button>` : ""}
-      </div>
     </section>
   `;
 }
@@ -833,9 +850,12 @@ function renderStoredPasskeyCard({ passkeySupported, passkeyLabel }) {
 function renderConnectOptions({ passkeySupported, passkeyLabel }) {
   return `
     <div class="connect-options">
-      <section class="connect-method-card">
-        <div>
-          <p class="eyebrow">Nostr Connect</p>
+      <section class="connect-method-card connect-method-card--featured">
+        <div class="connect-method-card-head">
+          <div class="connect-method-card-title-row">
+            <p class="eyebrow">Nostr Connect</p>
+            <span class="connect-method-badge">Recommended</span>
+          </div>
           <p class="connect-import-copy">Connect to a remote signer such as a wallet or extension that approves requests outside this app.</p>
         </div>
         <div class="actions connect-actions">
@@ -843,7 +863,7 @@ function renderConnectOptions({ passkeySupported, passkeyLabel }) {
         </div>
       </section>
       <section class="connect-method-card">
-        <div>
+        <div class="connect-method-card-head">
           <p class="eyebrow">Passkey</p>
           <p class="connect-import-copy">Use a passkey stored on this device to unlock your local Nostr identity. You can also import an existing nsec to bind it to a passkey here.</p>
         </div>

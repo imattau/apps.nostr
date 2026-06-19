@@ -2032,6 +2032,24 @@ label span {
   gap: 2.25rem;
 }
 
+/* Constrain card media icons in the grid */
+.news-layout .card-media img {
+  width: 80px;
+  height: 80px;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.news-layout .cards-grid--large .card-media img {
+  width: 110px;
+  height: 110px;
+}
+
+.news-layout .cards-grid--small .card-media img {
+  width: 64px;
+  height: 64px;
+}
+
 .news-hero {
   display: flex;
   flex-direction: column;

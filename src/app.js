@@ -39,6 +39,7 @@ const state = {
   selectedMediaServer: loadJson(STORAGE_KEYS.mediaServer, DEFAULT_MEDIA_SERVERS[0]),
   walletConnection: loadString(STORAGE_KEYS.walletConnection, ""),
   theme: loadTheme(),
+  bookmarks: loadJson("apps.nostr.bookmarks", []),
   installAvailable: false,
   gridSize: normalizeGridSize(loadString(STORAGE_KEYS.gridSize, "medium"), "medium"),
   sortOrder: normalizeSortOrder(loadString(STORAGE_KEYS.sortOrder, "newest"), "newest"),
@@ -1432,10 +1433,17 @@ function renderMain() {
 }
 
 function renderBrowseView() {
-  const apps = [...state.apps.values()]
+  const allApps = [...state.apps.values()]
     .filter((app) => !isBlockedPubkey(app.pubkey))
-    .filter((app) => !isDeleted(app))
-    .filter((app) => !state.filterCategory || app.categories.includes(state.filterCategory))
+    .filter((app) => !isDeleted(app));
+
+  const apps = allApps
+    .filter((app) => {
+      if (state.filterCategory === "saved") {
+        return state.bookmarks?.includes(`${app.pubkey}:${app.d}`);
+      }
+      return !state.filterCategory || app.categories.includes(state.filterCategory);
+    })
     .filter((app) => !state.filterBuildType || app.buildTypes.includes(state.filterBuildType))
     .filter((app) => {
       if (!state.filterText) return true;
@@ -1446,100 +1454,111 @@ function renderBrowseView() {
     })
     .sort((a, b) => compareBrowseApps(a, b, state.sortOrder));
 
+  const featuredApps = allApps
+    .sort((a, b) => Number(b.created_at || 0) - Number(a.created_at || 0))
+    .slice(0, 4);
+
   const cards = apps.map(renderCard).join("");
-  const searchAndCategoryCount = Number(Boolean(state.filterText)) + Number(Boolean(state.filterCategory));
-  const buildCount = Number(Boolean(state.filterBuildType));
+  const featuredCards = featuredApps.map(renderFeaturedCard).join("");
+
   return `
-    <div class="browse-layout">
-      <aside class="panel toolbar browse-sidebar">
-        <details class="browse-filter-group" data-browse-filters ${state.browseFiltersOpen ? "open" : ""}>
-          <summary class="browse-filter-summary">
-            <span>Search and categories</span>
-            ${renderFilterCountBadge(searchAndCategoryCount)}
-          </summary>
-          <div class="browse-filter-body">
-            <div class="toolbar-row toolbar-row--search">
-              <input type="search" name="filter-text" value="${escapeHtml(state.filterText)}" placeholder="Search apps, authors, descriptions" />
-            </div>
-            <div class="toolbar-group">
-              <div class="toolbar-group-label">Categories</div>
-              <div class="chip-group chip-group--sidebar" role="group" aria-label="Category filters">
-                <button
-                  class="filter-chip ${state.filterCategory === "" ? "active" : ""}"
-                  type="button"
-                  data-category-filter=""
-                >
-                  All categories
-                </button>
-                ${CATEGORIES.map(
-                  (category) => `
-                    <button
-                      class="filter-chip ${category === state.filterCategory ? "active" : ""}"
-                      type="button"
-                      data-category-filter="${category}"
-                    >
-                      ${category}
-                    </button>
-                  `,
-                ).join("")}
-              </div>
-            </div>
+    <div class="news-layout">
+      <header class="news-hero">
+        <div class="news-brand">
+          <h1>Discover</h1>
+          <p>Explore the best decentralized Nostr applications</p>
+        </div>
+        <div class="news-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="search" name="filter-text" value="${escapeHtml(state.filterText)}" placeholder="Search apps, authors, or keywords..." />
+        </div>
+      </header>
+
+      <nav class="news-tabs-scroll" aria-label="App Categories">
+        <button
+          class="news-tab-item ${state.filterCategory === "" ? "active" : ""}"
+          type="button"
+          data-category-filter=""
+        >
+          Discover
+        </button>
+        ${CATEGORIES.map(
+          (category) => `
+            <button
+              class="news-tab-item ${category === state.filterCategory ? "active" : ""}"
+              type="button"
+              data-category-filter="${category}"
+            >
+              ${category}
+            </button>
+          `,
+        ).join("")}
+        <button
+          class="news-tab-item ${state.filterCategory === "saved" ? "active" : ""}"
+          type="button"
+          data-category-filter="saved"
+        >
+          Saved
+        </button>
+      </nav>
+
+      ${state.filterCategory === "" && !state.filterText ? `
+        <section class="news-section">
+          <div class="news-section-header">
+            <h2>Hot topics</h2>
+            <span class="news-tag">Featured</span>
           </div>
-        </details>
-      </aside>
-      <div class="browse-main">
-        <section class="panel toolbar browse-toolbar">
-          <details class="browse-filter-group" data-build-filters ${state.buildFiltersOpen ? "open" : ""}>
-            <summary class="browse-filter-summary">
-              <span>Builds</span>
-              ${renderFilterCountBadge(buildCount)}
-            </summary>
-            <div class="browse-filter-body">
-              <div class="toolbar-group">
-                <div class="chip-group" role="group" aria-label="Build type filters">
+          <div class="news-carousel">
+            ${featuredCards || `<div class="news-empty-carousel">No featured apps yet</div>`}
+          </div>
+        </section>
+      ` : ""}
+
+      <section class="news-banner-card">
+        <div class="news-banner-content">
+          <span class="news-banner-tag">Get Tips</span>
+          <h3>Publish Your Nostr App</h3>
+          <p>Submit your NIP-89 app profile handler to make it discoverable by users across the Nostr network.</p>
+          <a href="${escapeHtml(routeToPath({ name: "submit" }))}" class="news-banner-btn">Get Started</a>
+        </div>
+        <div class="news-banner-illustration">
+          <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l19 38 10-5L12 2zM38 15L23 45l8 4 15-30-8-4z"></path>
+            <circle cx="65" cy="50" r="15" stroke-dasharray="4 4"></circle>
+            <path d="M65 30v40M45 50h40" stroke-width="1.5"></path>
+          </svg>
+        </div>
+      </section>
+
+      <section class="news-section">
+        <div class="news-section-header">
+          <h2>${state.filterCategory ? (state.filterCategory === "saved" ? "Saved Apps" : state.filterCategory) : "All Listings"}</h2>
+          <div class="news-controls">
+            <div class="news-control-group">
+              <button
+                class="news-chip ${state.filterBuildType === "" ? "active" : ""}"
+                type="button"
+                data-build-filter=""
+              >
+                All Builds
+              </button>
+              ${BUILD_TYPES.map(
+                (buildType) => `
                   <button
-                    class="filter-chip ${state.filterBuildType === "" ? "active" : ""}"
+                    class="news-chip ${buildType === state.filterBuildType ? "active" : ""}"
                     type="button"
-                    data-build-filter=""
+                    data-build-filter="${buildType}"
                   >
-                    All build types
+                    ${buildType}
                   </button>
-                  ${BUILD_TYPES.map(
-                    (buildType) => `
-                      <button
-                        class="filter-chip ${buildType === state.filterBuildType ? "active" : ""}"
-                        type="button"
-                        data-build-filter="${buildType}"
-                      >
-                        ${buildType}
-                      </button>
-                    `,
-                  ).join("")}
-                </div>
-              </div>
+                `,
+              ).join("")}
             </div>
-          </details>
-          <div class="toolbar-row toolbar-row--controls">
-            <div class="toolbar-group">
-              <div class="toolbar-group-label">Grid</div>
-              <div class="chip-group" role="group" aria-label="Grid size">
-                ${GRID_SIZE_OPTIONS.map(
-                  (size) => `
-                    <button
-                      class="filter-chip grid-size-chip ${size === state.gridSize ? "active" : ""}"
-                      type="button"
-                      data-grid-size="${size}"
-                      aria-label="${size} grid"
-                      title="${size} grid"
-                    >
-                      ${renderGridSizeIcon(size)}
-                    </button>
-                  `,
-                ).join("")}
-              </div>
-            </div>
-            <div class="toolbar-group">
-              <div class="toolbar-group-label">Sort</div>
+
+            <div class="news-buttons-row">
               <div class="chip-group" role="group" aria-label="Sort order">
                 ${[
                   ["newest", "Newest"],
@@ -1561,13 +1580,29 @@ function renderBrowseView() {
                   )
                   .join("")}
               </div>
+              <div class="chip-group" role="group" aria-label="Grid size">
+                ${GRID_SIZE_OPTIONS.map(
+                  (size) => `
+                    <button
+                      class="filter-chip grid-size-chip ${size === state.gridSize ? "active" : ""}"
+                      type="button"
+                      data-grid-size="${size}"
+                      aria-label="${size} grid"
+                      title="${size} grid"
+                    >
+                      ${renderGridSizeIcon(size)}
+                    </button>
+                  `,
+                ).join("")}
+              </div>
             </div>
           </div>
-        </section>
-        <section class="grid cards-grid cards-grid--${escapeHtml(state.gridSize)}">
+        </div>
+
+        <div class="grid cards-grid cards-grid--${escapeHtml(state.gridSize)}">
           ${state.loading ? `<div class="panel empty-state">Loading apps from relays…</div>` : cards || `<div class="panel empty-state">No apps matched your filters.</div>`}
-        </section>
-      </div>
+        </div>
+      </section>
     </div>
   `;
 }
@@ -1774,8 +1809,15 @@ function renderCard(app) {
   const iconSrc = app.image || app.imageSources?.[0] || buildFallbackIcon(app.name);
   const iconFallbacks = [app.imageSources || []].flat().filter(Boolean);
   const developer = app.authorName || truncatePubkey(app.pubkey);
+  const appId = `${app.pubkey}:${app.d}`;
+  const isBookmarked = state.bookmarks?.includes(appId);
   return `
     <article class="card">
+      <button class="card-bookmark-btn ${isBookmarked ? "active" : ""}" type="button" data-action="toggle-bookmark" data-app-id="${appId}" aria-label="${isBookmarked ? "Remove from bookmarks" : "Add to bookmarks"}">
+        <svg viewBox="0 0 24 24" fill="${isBookmarked ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2">
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+        </svg>
+      </button>
       <a href="${escapeHtml(routeToPath({ name: "detail", pubkey: app.pubkey, d: app.d }))}" class="card-link">
         <div class="card-media">
           ${renderImageElement({
@@ -1793,6 +1835,32 @@ function renderCard(app) {
         </div>
       </a>
     </article>
+  `;
+}
+
+function renderFeaturedCard(app) {
+  const iconSrc = app.image || app.imageSources?.[0] || buildFallbackIcon(app.name);
+  const developer = app.authorName || truncatePubkey(app.pubkey);
+  const appId = `${app.pubkey}:${app.d}`;
+  const isBookmarked = state.bookmarks?.includes(appId);
+  return `
+    <div class="news-featured-card">
+      <button class="card-bookmark-btn ${isBookmarked ? "active" : ""}" type="button" data-action="toggle-bookmark" data-app-id="${appId}" aria-label="${isBookmarked ? "Remove from bookmarks" : "Add to bookmarks"}">
+        <svg viewBox="0 0 24 24" fill="${isBookmarked ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2">
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+        </svg>
+      </button>
+      <a href="${escapeHtml(routeToPath({ name: "detail", pubkey: app.pubkey, d: app.d }))}" class="news-featured-link">
+        <div class="news-featured-media">
+          <img src="${escapeHtml(iconSrc)}" alt="${escapeHtml(app.name)} icon" loading="lazy" />
+        </div>
+        <div class="news-featured-info">
+          <span class="news-featured-dev">@${escapeHtml(developer)}</span>
+          <h3>${escapeHtml(app.name)}</h3>
+          <p>${escapeHtml(app.description || "")}</p>
+        </div>
+      </a>
+    </div>
   `;
 }
 
@@ -2216,6 +2284,23 @@ function bindUi() {
     element.addEventListener("click", () => {
       state.sortOrder = normalizeSortOrder(element.getAttribute("data-sort-order"), state.sortOrder);
       localStorage.setItem(STORAGE_KEYS.sortOrder, state.sortOrder);
+      scheduleRender();
+    });
+  });
+
+  document.querySelectorAll("[data-action='toggle-bookmark']").forEach((element) => {
+    element.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const id = element.getAttribute("data-app-id");
+      if (!id) return;
+      const index = state.bookmarks.indexOf(id);
+      if (index === -1) {
+        state.bookmarks.push(id);
+      } else {
+        state.bookmarks.splice(index, 1);
+      }
+      localStorage.setItem("apps.nostr.bookmarks", JSON.stringify(state.bookmarks));
       scheduleRender();
     });
   });

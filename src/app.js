@@ -1623,65 +1623,29 @@ function renderMobileDock() {
 
   const active = state.route.name;
   const avatarLabel = (state.profileName || truncatePubkey(state.pubkey || "account", 8)).slice(0, 2).toUpperCase() || "U";
-  const accountLabel = state.hasActiveAccount ? "Avatar" : "Menu";
+  const accountLabel = state.hasActiveAccount ? "Account" : "Menu";
   const accountButtonClass = `mobile-dock-item mobile-dock-action mobile-dock-avatar${state.accountMenuOpen ? " active" : ""}`;
 
   return `
     <nav class="mobile-dock" aria-label="Quick actions">
-      <div class="mobile-dock-arc">
-        ${renderMobileDockShape()}
-        <div class="mobile-dock-content">
-          ${renderMobileDockLink({
-            href: routeToPath({ name: "browse" }),
-            label: "Browse",
-            iconMarkup: renderBrowseIcon(),
-            active: active === "browse",
-            className: "mobile-dock-item mobile-dock-item--browse",
-          })}
-          ${renderMobileDockAccountButton({ accountButtonClass, accountLabel, avatarLabel })}
-          ${renderMobileDockLink({
-            href: routeToPath({ name: "submit" }),
-            label: "Submit",
-            iconMarkup: renderSubmitIcon(),
-            active: active === "submit",
-            className: "mobile-dock-item mobile-dock-item--submit",
-          })}
-        </div>
+      <div class="mobile-dock-content">
+        ${renderMobileDockLink({
+          href: routeToPath({ name: "browse" }),
+          label: "Browse",
+          iconMarkup: renderBrowseIcon(),
+          active: active === "browse",
+          className: "mobile-dock-item mobile-dock-item--browse",
+        })}
+        ${renderMobileDockAccountButton({ accountButtonClass, accountLabel, avatarLabel })}
+        ${renderMobileDockLink({
+          href: routeToPath({ name: "submit" }),
+          label: "Submit",
+          iconMarkup: renderSubmitIcon(),
+          active: active === "submit",
+          className: "mobile-dock-item mobile-dock-item--submit",
+        })}
       </div>
     </nav>
-  `;
-}
-
-function renderMobileDockShape() {
-  return `
-    <svg class="mobile-dock-shape" viewBox="0 0 1200 470" aria-hidden="true" focusable="false" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="mobileDockFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#23232b"></stop>
-          <stop offset="55%" stop-color="#17171d"></stop>
-          <stop offset="100%" stop-color="#111115"></stop>
-        </linearGradient>
-        <linearGradient id="mobileDockStroke" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#545463"></stop>
-          <stop offset="50%" stop-color="#3f4050"></stop>
-          <stop offset="100%" stop-color="#282833"></stop>
-        </linearGradient>
-      </defs>
-      <path
-        d="M0 166C64 128 124 100 195 84C269 68 338 71 410 85C482 98 539 117 598 125C662 134 727 129 794 104C858 80 898 49 971 39C1040 30 1110 56 1170 109C1190 127 1200 151 1200 179V390C1200 422 1174 448 1142 448H58C26 448 0 422 0 390V166Z"
-        fill="url(#mobileDockFill)"
-        stroke="url(#mobileDockStroke)"
-        stroke-width="4"
-        stroke-linejoin="round"
-      />
-      <path
-        d="M12 170C84 132 149 105 223 90C300 74 370 77 445 92C520 107 578 126 636 133C705 141 775 133 844 107C910 82 952 52 1030 42C1100 33 1159 56 1194 93"
-        fill="none"
-        stroke="rgba(255,255,255,0.08)"
-        stroke-width="3"
-        stroke-linecap="round"
-      />
-    </svg>
   `;
 }
 
@@ -1689,6 +1653,7 @@ function renderMobileDockLink({ href, label, iconMarkup, active, className }) {
   return `
     <a class="${className}${active ? " active" : ""}" href="${escapeHtml(href)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
       <span class="mobile-dock-icon" aria-hidden="true">${iconMarkup}</span>
+      <span class="mobile-dock-label">${escapeHtml(label)}</span>
     </a>
   `;
 }
@@ -1711,6 +1676,7 @@ function renderMobileDockAccountButton({ accountButtonClass, accountLabel, avata
       title="${escapeHtml(accountLabel)}"
     >
       <span class="mobile-dock-icon mobile-dock-avatar-graphic" aria-hidden="true">${avatarMarkup}</span>
+      <span class="mobile-dock-label">${escapeHtml(accountLabel)}</span>
     </button>
   `;
 }

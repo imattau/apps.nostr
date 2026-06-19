@@ -98,6 +98,14 @@ let refreshLoop = null;
 let refreshInFlight = null;
 let installPromptEvent = null;
 let compactHeaderViewport = isCompactBrowseViewport();
+let mobileNavScrollY = typeof window !== "undefined" ? window.scrollY || 0 : 0;
+let mobileNavVisible = !isCompactBrowseViewport() || mobileNavScrollY <= 8;
+let mobileNavScrollFrame = 0;
+let mobileNavMonitorFrame = 0;
+let mobileNavTouchY = null;
+let mobileNavLastAppliedVisible = mobileNavVisible;
+let mobileNavMonitorTimer = 0;
+let mobileNavLastHideAt = 0;
 
 const CACHE_REFRESH_OVERLAP_SECONDS = 12 * 60 * 60;
 const CACHE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
@@ -167,9 +175,18 @@ window.addEventListener("resize", () => {
       state.browseFiltersOpen = true;
       state.buildFiltersOpen = true;
     }
+    mobileNavVisible = !nextCompactHeaderViewport || window.scrollY <= 8;
+    syncMobileNavChrome();
+    if (nextCompactHeaderViewport) {
+      startMobileNavMonitor();
+    }
     scheduleRender();
   }
 });
+window.addEventListener("wheel", handleMobileDockWheel, { passive: true });
+window.addEventListener("touchstart", handleMobileDockTouchStart, { passive: true });
+window.addEventListener("touchmove", handleMobileDockTouchMove, { passive: true });
+window.addEventListener("scroll", handleWindowScroll, { passive: true });
 
 normalizeInitialLocation();
 
@@ -181,6 +198,7 @@ function boot() {
   normalizeInitialLocation();
   routeSideEffects();
   void initializeServices();
+  startMobileNavMonitor();
 }
 
 function restorePasskeyAccount() {
@@ -677,10 +695,12 @@ function render() {
       <main class="page-main">
         ${renderMain()}
       </main>
+      ${renderMobileDock()}
       ${renderLightbox()}
     </div>
   `;
   bindUi();
+  syncMobileNavChrome();
   restoreFocusState(focusState);
 }
 
@@ -739,7 +759,7 @@ function renderHeader() {
               class="ghost theme-toggle"
               type="button"
               data-action="toggle-theme"
-              aria-label="Switch to ${state.theme === "dark" ? "light" : "dark"} theme"
+              aria-label="Switch to ${state.theme === "dark" ? "light" : state.theme === "light" ? "store" : "dark"} theme"
               title="Switch theme"
             >
               ${renderThemeIcon(state.theme)}
@@ -1039,6 +1059,17 @@ function renderThemeIcon(theme) {
     `;
   }
 
+  if (theme === "light") {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <path d="M16 10a4 4 0 0 1-8 0"></path>
+      </svg>
+    `;
+  }
+
+  // store theme
   return `
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path
@@ -1049,9 +1080,9 @@ function renderThemeIcon(theme) {
   `;
 }
 
-function renderNavLink(href, label, iconMarkup, active = false) {
+function renderNavLink(href, label, iconMarkup, active = false, className = "") {
   return `
-    <a class="${active ? "active" : ""}" href="${escapeHtml(href)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
+    <a class="${className}${active ? " active" : ""}" href="${escapeHtml(href)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
       ${renderControlContent(label, iconMarkup)}
     </a>
   `;
@@ -1550,6 +1581,193 @@ function isCompactBrowseViewport() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function"
     ? window.matchMedia("(max-width: 640px)").matches
     : false;
+}
+
+function renderMobileDock() {
+  if (!isCompactBrowseViewport()) return "";
+
+  const active = state.route.name;
+  const avatarLabel = (state.profileName || truncatePubkey(state.pubkey || "account", 8)).slice(0, 2).toUpperCase() || "U";
+  const accountLabel = state.hasActiveAccount ? "Avatar" : "Menu";
+  const accountButtonClass = `mobile-dock-item mobile-dock-action mobile-dock-avatar${state.accountMenuOpen ? " active" : ""}`;
+
+  return `
+    <nav class="mobile-dock" aria-label="Quick actions">
+      <div class="mobile-dock-arc">
+        ${renderMobileDockShape()}
+        <div class="mobile-dock-content">
+          ${renderMobileDockLink({
+            href: routeToPath({ name: "browse" }),
+            label: "Browse",
+            iconMarkup: renderBrowseIcon(),
+            active: active === "browse",
+            className: "mobile-dock-item mobile-dock-item--browse",
+          })}
+          ${renderMobileDockAccountButton({ accountButtonClass, accountLabel, avatarLabel })}
+          ${renderMobileDockLink({
+            href: routeToPath({ name: "submit" }),
+            label: "Submit",
+            iconMarkup: renderSubmitIcon(),
+            active: active === "submit",
+            className: "mobile-dock-item mobile-dock-item--submit",
+          })}
+        </div>
+      </div>
+    </nav>
+  `;
+}
+
+function renderMobileDockShape() {
+  return `
+    <svg class="mobile-dock-shape" viewBox="0 0 1200 470" aria-hidden="true" focusable="false" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="mobileDockFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#23232b"></stop>
+          <stop offset="55%" stop-color="#17171d"></stop>
+          <stop offset="100%" stop-color="#111115"></stop>
+        </linearGradient>
+        <linearGradient id="mobileDockStroke" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#545463"></stop>
+          <stop offset="50%" stop-color="#3f4050"></stop>
+          <stop offset="100%" stop-color="#282833"></stop>
+        </linearGradient>
+      </defs>
+      <path
+        d="M0 166C64 128 124 100 195 84C269 68 338 71 410 85C482 98 539 117 598 125C662 134 727 129 794 104C858 80 898 49 971 39C1040 30 1110 56 1170 109C1190 127 1200 151 1200 179V390C1200 422 1174 448 1142 448H58C26 448 0 422 0 390V166Z"
+        fill="url(#mobileDockFill)"
+        stroke="url(#mobileDockStroke)"
+        stroke-width="4"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M12 170C84 132 149 105 223 90C300 74 370 77 445 92C520 107 578 126 636 133C705 141 775 133 844 107C910 82 952 52 1030 42C1100 33 1159 56 1194 93"
+        fill="none"
+        stroke="rgba(255,255,255,0.08)"
+        stroke-width="3"
+        stroke-linecap="round"
+      />
+    </svg>
+  `;
+}
+
+function renderMobileDockLink({ href, label, iconMarkup, active, className }) {
+  return `
+    <a class="${className}${active ? " active" : ""}" href="${escapeHtml(href)}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
+      <span class="mobile-dock-icon" aria-hidden="true">${iconMarkup}</span>
+    </a>
+  `;
+}
+
+function renderMobileDockAccountButton({ accountButtonClass, accountLabel, avatarLabel }) {
+  const avatarMarkup = state.hasActiveAccount && state.profileImageUrl
+    ? `<img src="${escapeHtml(state.profileImageUrl)}" alt="" />`
+    : state.hasActiveAccount
+      ? `<span>${escapeHtml(avatarLabel)}</span>`
+      : `<span>${renderMenuIcon()}</span>`;
+
+  return `
+    <button
+      class="${accountButtonClass}"
+      type="button"
+      data-action="toggle-account-menu"
+      aria-haspopup="menu"
+      aria-expanded="${state.accountMenuOpen ? "true" : "false"}"
+      aria-label="${escapeHtml(state.hasActiveAccount ? "Account menu" : "Menu")}"
+      title="${escapeHtml(accountLabel)}"
+    >
+      <span class="mobile-dock-icon mobile-dock-avatar-graphic" aria-hidden="true">${avatarMarkup}</span>
+    </button>
+  `;
+}
+
+function syncMobileNavChrome() {
+  if (typeof document === "undefined") return;
+  const mobileViewport = isCompactBrowseViewport();
+  const shouldShow = mobileViewport && mobileNavVisible;
+  if (shouldShow === mobileNavLastAppliedVisible) return;
+  mobileNavLastAppliedVisible = shouldShow;
+  document.documentElement.classList.toggle("mobile-nav-hidden", mobileViewport && !shouldShow);
+  document.documentElement.classList.toggle("mobile-nav-visible", mobileViewport && shouldShow);
+}
+
+function setMobileDockVisibility(visible) {
+  const nextVisible = Boolean(visible);
+  if (nextVisible === mobileNavVisible) return;
+  mobileNavVisible = nextVisible;
+  if (!nextVisible) {
+    mobileNavLastHideAt = performance.now();
+  }
+  mobileNavLastAppliedVisible = !nextVisible;
+  syncMobileNavChrome();
+}
+
+function handleMobileDockWheel(event) {
+  if (!isCompactBrowseViewport()) return;
+  if (Math.abs(event.deltaY || 0) < 2) return;
+  setMobileDockVisibility((event.deltaY || 0) < 0);
+}
+
+function handleMobileDockTouchStart(event) {
+  if (!isCompactBrowseViewport()) return;
+  mobileNavTouchY = event.touches?.[0]?.clientY ?? null;
+}
+
+function handleMobileDockTouchMove(event) {
+  if (!isCompactBrowseViewport()) return;
+  const nextTouchY = event.touches?.[0]?.clientY ?? null;
+  if (mobileNavTouchY == null || nextTouchY == null) return;
+  const delta = nextTouchY - mobileNavTouchY;
+  if (Math.abs(delta) < 3) return;
+  setMobileDockVisibility(delta > 0);
+  mobileNavTouchY = nextTouchY;
+}
+
+function startMobileNavMonitor() {
+  if (mobileNavMonitorTimer || typeof window === "undefined") return;
+
+  const sampleScroll = () => {
+    if (!isCompactBrowseViewport()) {
+      setMobileDockVisibility(true);
+      return;
+    }
+
+    const currentY = document.scrollingElement?.scrollTop ?? window.scrollY ?? 0;
+    const delta = currentY - mobileNavScrollY;
+    mobileNavScrollY = currentY;
+    const timeSinceHide = performance.now() - mobileNavLastHideAt;
+
+    if (delta > 10) {
+      setMobileDockVisibility(false);
+    } else if (delta < -10 && timeSinceHide > 350) {
+      setMobileDockVisibility(true);
+    }
+  };
+
+  mobileNavMonitorTimer = window.setInterval(sampleScroll, 80);
+  sampleScroll();
+}
+
+function handleWindowScroll() {
+  if (!isCompactBrowseViewport()) {
+    setMobileDockVisibility(true);
+    return;
+  }
+
+  if (mobileNavScrollFrame) return;
+
+  mobileNavScrollFrame = window.requestAnimationFrame(() => {
+    mobileNavScrollFrame = 0;
+    const currentY = document.scrollingElement?.scrollTop || window.scrollY || 0;
+    const delta = currentY - mobileNavScrollY;
+    mobileNavScrollY = currentY;
+    const timeSinceHide = performance.now() - mobileNavLastHideAt;
+
+    if (delta > 10) {
+      setMobileDockVisibility(false);
+    } else if (delta < -10 && timeSinceHide > 350) {
+      setMobileDockVisibility(true);
+    }
+  });
 }
 
 function renderCard(app) {
@@ -2177,16 +2395,17 @@ function bindUi() {
     });
   }
 
-  const toggleTheme = document.querySelector("[data-action='toggle-theme']");
-  if (toggleTheme) {
-    toggleTheme.addEventListener("click", () => {
-      state.theme = state.theme === "dark" ? "light" : "dark";
+  document.querySelectorAll("[data-action='toggle-theme']").forEach((element) => {
+    element.addEventListener("click", () => {
+      const themes = ["dark", "light", "store"];
+      const currentIndex = themes.indexOf(state.theme);
+      state.theme = themes[currentIndex === -1 ? 0 : (currentIndex + 1) % themes.length];
       state.accountMenuOpen = false;
       applyTheme(state.theme);
       localStorage.setItem(STORAGE_KEYS.theme, state.theme);
       scheduleRender();
     });
-  }
+  });
 
   const copyDraft = document.querySelector("[data-action='copy-draft']");
   if (copyDraft) {
@@ -3181,12 +3400,12 @@ function loadString(key, fallback) {
 
 function loadTheme() {
   const saved = localStorage.getItem(STORAGE_KEYS.theme);
-  if (saved === "light" || saved === "dark") return saved;
+  if (saved === "light" || saved === "dark" || saved === "store") return saved;
   return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = theme;
 }
 
 function loadDraft() {
